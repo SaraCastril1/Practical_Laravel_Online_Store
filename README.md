@@ -405,3 +405,232 @@ In resources/views/auth/login.blade.php, make the following changes in bold:
 
 In resources/views/auth/register.blade.php, make the following changes in bold:
 ![alt text](image-4.png)
+
+
+## 22. Refactoring User:
+
+### 22.1:
+```
+php artisan make:migration alter_users_table
+```
+
+The previous command creates a new migration inside the database/migrations folder. Open the 
+generated file (something like 2022_02_12_140820_alter_users_table.php) and modify the up and 
+down methods.
+
+```
+php artisan migrate
+```
+
+### 22.2. Refactoring User model:
+
+In app/Models/User.php: 
+- Commented atributes.
+- Protected attributes (fillable).
+- Getters and setters.
+
+### 22.3. Modifying the RegisteredUserController:
+In app/Http/Controllers/Auth/RegisterController.php add the balance attribute
+
+### 22.4. Creating an Admin User:
+```
+php artisan tinker
+```
+
+```
+$user = new App\Models\User();
+$user->setName('Daniel');
+$user->setEmail('daniel@danielgara.com');
+$user->setPassword(bcrypt('passwordVerySecret'));
+$user->setBalance(5000);
+$user->setRole('admin');
+$user->save();
+exit;
+```
+
+
+## 23. AdminAuthMiddleware:
+
+Let’s restrict the access to the admin panel just for admins. 
+
+- Create a new Middleware:
+```
+php artisan make:middleware AdminAuthMiddleware
+```
+
+- Let’s modify the new middleware. In app/Http/Middleware/AdminAuthMiddleware.php
+
+Add: `use Illuminate\Support\Facades\Auth; ` and the logic to the code
+
+
+### 23.1 Registering AdminAuthMiddleware
+We will use AdminAuthMiddleware to restrict access to admin routes. So, we will need to register 
+the middleware In app/Http/Kernel.php
+
+`'admin' => \App\Http\Middleware\AdminAuthMiddleware::class, `
+
+We included the AdminAuthMiddleware in the $routeMiddleware attribute
+
+### 23.2 Modifying web.php
+Let’s connect the previous middleware with the routes we want to restrict. In routes/web.php
+
+```
+Route::middleware('admin')->group(function () { ... 
+});
+```
+
+We grouped all (“/admin/*”) routes around the new middleware.
+
+### 24. Shopping Cart (Web Sessions):
+
+- CartController.php in app/Http/Controllers
+- Product Model in app/Models/Product.php:
+  We include a new static method called sumPricesByQuantities. sumPricesByQuantities receives the 
+  Eloquent products’ models added in the cart and the information of products stored in session. It 
+  iterates over the products and calculates the total to be paid (based on the price of each product 
+  and its corresponding quantity). It then returns the total to be paid.
+- routes/web.php.
+- Modifying app.blade.php: In resources/views/layouts/app.blade.php
+  Add a new link to the cart page. 
+
+- Modifying product/show view: in resources/views/product/show.blade.php
+
+  Add a new form where the user enters the product’s quantity to the cart. This form is linked to 
+  the cart.add route. 
+
+
+- Cart index view 
+ In resources/views/, create a subfolder cart. Then, in resources/views/cart, create a new file 
+index.blade.php 
+
+## 25. Orders And Items:
+![alt text](image-5.png)
+
+
+- Order migration: and create the up and down methods.
+```
+php artisan make:migration create_orders_table 
+```
+- Item migration: and create the up and down methods.
+```
+php artisan make:migration create_items_table 
+```
+
+```
+php artisan migrate 
+```
+
+- Order model: In app/Models, create a new file Order.php
+- Item model: In app/Models, create a new file Item.php
+- Modifying User model: In app/Models/User.php
+
+```
+.
+.
+.
+use App\Models\Order;
+.
+.
+.
+ * $this->orders - Order[] - contains the associated orders 
+ .
+ .
+ .
+ public function orders() 
+ { 
+ return $this->hasMany(Order::class); 
+ } 
+ 
+ public function getOrders() 
+ { 
+ return $this->orders; 
+ } 
+ 
+ public function setOrders($orders) 
+ { 
+ $this->orders = $orders; 
+ } 
+
+
+```
+
+We added the orders attribute. Now, we can access from a User model to its corresponding orders.
+
+- Modifying Product model: In app/Models/Product.php
+
+```
+.
+.
+.
+use App\Models\Item;
+.
+.
+.
+* $this->items - Item[] - contains the associated items 
+.
+.
+.
+public function items() 
+ { 
+  	return $this->hasMany(Item::class); 
+ } 
+ 
+ public function getItems() 
+ { 
+  return $this->items; 
+ } 
+ 
+ public function setItems($items) 
+ { 
+  $this->items = $items; 
+ }
+ ```
+We added the items attribute. Now, we can access from a Product model to its corresponding items.
+
+## 26. Product Purchase:
+
+- Modifying web.php: In routes/web.php
+We create the (“cart/purchase”) route. This route will be only available for authenticated users.
+
+- Modifying cart/index view:
+In resources/views/cart/index.blade.php: We only show the Purchase link and the “Remove all products 
+from Cart” button if the user has products in session. And we link the Purchase link with the 
+cart.purchase route.
+
+- Cart purchase view: In resources/views/cart, create a new file purchase.blade.php 
+
+- Modifying ProductController: In app/Http/Controllers/CartController.php
+We define the purchase method that is the most complex in this book. In the beginning, we check if 
+the user has products in session. If there are no products in session, we redirect the user to the 
+cart.index route. If there are products, we create an Order with the logged user id and a purchase 
+total of 0 (we will update this value later). We create this Order because we need to access the Order 
+id to create items.
+Then, we iterate through the productsInCart. For each product in productsInCart, we create a new
+Item, set the corresponding quantity (based on the values stored in session), price, product id, and 
+order id. We then save the item and update the total value.
+**Note: we have not verified if the user has enough money to purchase. Try to include that validation 
+in the previous code. You can use the discussion zone of the book repository to show us your 
+solution.**
+
+
+
+## 27.  Orders Page:
+
+Let’s finish our Online Store application. We will create a page where users can list their orders. 
+
+- Modifying web.php: In routes/web.php (Inside the "Auth Group")
+- Modifying app.blade.php: In resources/views/layouts/app.blade.php add the my account bottom.
+- MyAccountController: In app/Http/Controllers, create a new file MyAccountController.php
+  The orders method collects the orders based on the authenticated user id and displays the 
+  myaccount.orders view.
+
+- MyAccount orders view: In resources/views/, create a subfolder myaccount. Then, in resources/views/myaccount, create a new file orders.blade.php
+
+![alt text](image-6.png)
+
+
+### 27.1 Using eager loading:
+Let’s improve our application code and use eager loading for the orders page. In 
+app/Http/Controllers/MyAccountController.php, make the following changes in bold. 
+
+![alt text](image-7.png)
